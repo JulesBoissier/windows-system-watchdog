@@ -5,9 +5,11 @@ from src.windows_utils import get_windows_info
 
 app = FastAPI()
 
+
 @app.get("/")
 def root():
     return {"message": "System Watchdog is Running"}
+
 
 @app.get("/windows_info")
 def windows_info():

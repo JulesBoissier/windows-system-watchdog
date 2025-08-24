@@ -3,6 +3,7 @@ from typing import Dict, List, Any
 import win32gui
 import win32con
 
+
 def build_z_index_map() -> Dict[str, int]:
     """Creates a list of Windows Handle and their associated Z-indices."""
     z_index_map = {}
