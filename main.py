@@ -8,12 +8,17 @@ app = FastAPI()
 
 @app.get("/")
 def root():
-    return {"message": "System Watchdog is Running"}
+    return {
+        "message": "System Watchdog is Running",
+        "version": "",
+        "uptime": "",
+        "routes": ["/", "/health", "/windows_info"],
+    }
 
 
 @app.get("/health")
 def health_check():
-    return {"message": "System Watchdog is Running"}
+    return {"status": "ok"}
 
 
 @app.get("/windows_info")
