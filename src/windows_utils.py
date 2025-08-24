@@ -2,6 +2,8 @@ from typing import Dict, List, Any
 
 import win32gui
 import win32con
+import win32process
+import psutil
 
 
 def build_z_index_map() -> Dict[str, int]:
@@ -18,21 +20,28 @@ def build_z_index_map() -> Dict[str, int]:
 
 def win_enum_handler(hwnd, ctx):
     """Handler to be passed to EnumWindows to capture information for visible windows."""
+
     if win32gui.IsWindowVisible(hwnd):
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        process = psutil.Process(pid)
+        exe_name = process.name()
+        # exe_path = process.exe()
         title = win32gui.GetWindowText(hwnd)
         rect = win32gui.GetWindowRect(hwnd)
         width = rect[2] - rect[0]
         height = rect[3] - rect[1]
 
-        # Append to the passed-in list instead of global
-        ctx.append(
-            {
-                "hwnd": hwnd,
-                "title": title,
-                "rect": rect,
-                "size": (width, height),
-            }
-        )
+        if width * height > 1:  # Ignores mini-windows or background processes
+            ctx.append(
+                {
+                    "hwnd": hwnd,
+                    "exe_name": exe_name,
+                    # "exe_path": exe_path,
+                    "title": title,
+                    "rect": rect,
+                    "size": (width, height),
+                }
+            )
 
 
 def add_z_index(window_info, z_index_map):
