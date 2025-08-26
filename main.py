@@ -1,3 +1,4 @@
+import argparse
 import uvicorn
 from fastapi import FastAPI
 
@@ -27,4 +28,8 @@ def windows_info():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8002)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8002, help="Port to run the server on")
+    args = parser.parse_args()
+
+    uvicorn.run(app, host="0.0.0.0", port=args.port)
