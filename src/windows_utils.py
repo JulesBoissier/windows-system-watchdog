@@ -23,8 +23,11 @@ def win_enum_handler(hwnd, ctx):
 
     if win32gui.IsWindowVisible(hwnd):
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
-        process = psutil.Process(pid)
-        exe_name = process.name()
+        try:
+            exe_name = psutil.Process(pid).name()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            # Process exited mid-enumeration or is protected (e.g. elevated/system)
+            exe_name = None
         # exe_path = process.exe()
         title = win32gui.GetWindowText(hwnd)
         rect = win32gui.GetWindowRect(hwnd)
@@ -47,7 +50,8 @@ def win_enum_handler(hwnd, ctx):
 def add_z_index(window_info, z_index_map):
     """Utility to append the Z-indices to the rest of the window information."""
     for window in window_info:
-        window["z_index"] = z_index_map[window["hwnd"]]
+        # Windows closed between the two enumerations have no z-index; sort them last
+        window["z_index"] = z_index_map.get(window["hwnd"], len(z_index_map))
     return window_info
 
 
