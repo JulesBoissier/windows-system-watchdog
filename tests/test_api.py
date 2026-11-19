@@ -58,12 +58,6 @@ def test_windows_info_returns_json_list(api, desktop):
     assert entry["z_index"] == 0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=RecursionError,
-    reason="Known bug on main: the route function shadows screeninfo.get_monitors and calls "
-    "itself. Fixed on fix/install-scripts.",
-)
 def test_get_monitors_lists_displays(api):
     """``GET /get_monitors`` lists each display's position and size in desktop pixels.
 

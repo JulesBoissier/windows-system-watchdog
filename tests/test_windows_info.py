@@ -69,11 +69,6 @@ def test_omits_invisible_and_degenerate_windows(desktop, hidden):
     assert [w["exe_name"] for w in get_windows_info()] == ["Code.exe"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Known bug on main: psutil.AccessDenied/NoSuchProcess propagates and fails the "
-    "whole request. Fixed on fix/install-scripts.",
-)
 def test_window_of_protected_process_is_still_reported(desktop):
     """A window whose process can't be inspected is still reported, without an exe name.
 
@@ -88,10 +83,6 @@ def test_window_of_protected_process_is_still_reported(desktop):
     assert titles == {"main.py - Visual Studio Code", "Task Manager"}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Known bug on main: add_z_index raises KeyError. Fixed on fix/install-scripts.",
-)
 def test_window_closing_during_request_does_not_fail_it(desktop):
     """A window that closes between the two Win32 walks doesn't make the request fail.
 
