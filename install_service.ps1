@@ -1,45 +1,67 @@
+#Requires -RunAsAdministrator
+# Installs the watchdog as a scheduled task that runs in your desktop session at logon.
+# Usage: .\install_service.ps1 [-Port 8002]
+
 param(
-    [int]$Port = 8002  # Default port if none provided
+    [int]$Port = 0  # 0 means use $DefaultPort from config.ps1
 )
 
-# Step 1: Set variables
-$ProjectDir       = $PSScriptRoot
-$MainScript       = "$ProjectDir\main.py"
-$RequirementsFile = "$ProjectDir\requirements.txt"
-$TaskName         = "WindowsSystemWatchdog"
-$VenvPath         = "$ProjectDir\venv"
-$PythonExe        = "$VenvPath\Scripts\python.exe"
-$LogFile          = "$ProjectDir\watchdog.log"
+. "$PSScriptRoot\config.ps1"
+if ($Port -eq 0) { $Port = $DefaultPort }
 
-# Step 2: Create Virtual Environment if not exists
-if (!(Test-Path $VenvPath)) {
-    Write-Output "Creating virtual environment..."
-    & py -m venv $VenvPath
+# Step 1: Create Virtual Environment if not exists
+if (!(Test-Path $PythonExe)) {
+    # Use the py launcher if installed, otherwise fall back to python on PATH
+    $PythonCmd = if (Get-Command py -ErrorAction SilentlyContinue) { "py" } else { "python" }
+    Write-Output "Creating virtual environment with '$PythonCmd'..."
+    & $PythonCmd -m venv $VenvPath
 }
 
-# Step 3: Install required dependencies
+if (!(Test-Path $PythonExe)) {
+    Write-Error "Virtual environment creation failed: $PythonExe not found. Is Python installed?"
+    exit 1
+}
+
+# Step 2: Install required dependencies
 Write-Output "Installing dependencies..."
 & $PythonExe -m pip install --upgrade pip
 & $PythonExe -m pip install -r $RequirementsFile
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Dependency installation failed. Fix the pip error above and re-run."
+    exit 1
+}
 
-# Step 4: Remove old scheduled task (if exists)
+# Step 3: Stop and remove the old scheduled task (if exists)
 Write-Output "Removing old scheduled task (if exists)..."
+Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
-# Step 5: Register new scheduled task (At logon + one-time trigger 30s from now)
+# Step 4: Register the scheduled task.
+# pythonw.exe runs without a console window; main.py writes its own log file,
+# since a task action is not a shell and cannot redirect output.
 Write-Output "Registering scheduled task..."
-$Action    = New-ScheduledTaskAction -Execute $PythonExe -Argument "$MainScript --port $Port *> $LogFile 2>&1"
-$LogonTrigger   = New-ScheduledTaskTrigger -AtLogOn
-$OneTimeTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(30)
-$Principal = New-ScheduledTaskPrincipal -UserId $env:UserName -LogonType Interactive -RunLevel Highest
+$Action    = New-ScheduledTaskAction -Execute $PythonwExe `
+                 -Argument "`"$MainScript`" --port $Port --log-file `"$LogFile`"" `
+                 -WorkingDirectory $ProjectDir
+$Trigger   = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$Principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Highest
+# Defaults would kill the task after 72 hours and refuse to run on battery.
+$Settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) `
+                 -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+                 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 
-# Multiple triggers: logon + one-time delayed
-Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $LogonTrigger,$OneTimeTrigger -Principal $Principal
+Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger `
+    -Principal $Principal -Settings $Settings | Out-Null
 
-# Step 6: Launch the app immediately in your interactive session (minimized window)
-Write-Output "Starting FastAPI immediately in a minimized console window..."
-Start-Process "$PythonExe" "$MainScript --port $Port" -WindowStyle Minimized
+# Step 5: Start it now rather than waiting for the next logon
+Write-Output "Starting the watchdog..."
+Start-ScheduledTask -TaskName $TaskName
+Start-Sleep -Seconds 3
 
-Write-Output "Setup completed! FastAPI should be running at http://127.0.0.1:$Port"
-Write-Output "Task scheduled to run automatically at logon and 30 seconds from now."
-Write-Output "Logs will be written to $LogFile"
+try {
+    Invoke-RestMethod "http://127.0.0.1:$Port/health" -TimeoutSec 5 | Out-Null
+    Write-Output "Setup completed! Watchdog is running at http://127.0.0.1:$Port"
+} catch {
+    Write-Warning "Task started but http://127.0.0.1:$Port/health is not responding yet. Check $LogFile or run .\status_service.ps1"
+}
+Write-Output "It will start automatically at logon. Logs: $LogFile"
