@@ -18,6 +18,8 @@ No pre-commit yet.
 - `GET /windows_info` — list of `{hwnd, exe_name, title, rect:[l,t,r,b], size:[w,h], z_index}` for every visible, non-cloaked window with area > 1px. `z_index` 0 = front-most. Rects are absolute virtual-desktop coordinates; minimized windows show up at about `-32000` and are filtered out by the client.
 - `GET /get_monitors` — `screeninfo` monitors (`x`, `y`, `width`, `height`, `name`, `is_primary`, …) in the same desktop coordinates as window rects.
 
+- `GET /clicks?after=<seq>` — `{recording, last_seq, clicks:[{seq, x, y, t}]}`: left clicks (absolute desktop px, `t` = Windows `time.time()`, same clock as the webcam's `/frame_at`), for implicit calibration. **Opt-in:** the low-level mouse hook (`src/clicks.py`) starts on the first request; clicks are kept in a 1000-entry in-memory ring; software-injected clicks are ignored.
+
 **Contract:** if you change the `/windows_info` shape, update `SystemWatchdogClient.compute_visible_windows` in the orchestrator in the same change.
 
 ## Tests
