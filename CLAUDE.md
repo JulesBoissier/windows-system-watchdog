@@ -6,6 +6,7 @@ FastAPI app that reports the currently visible top-level windows on the Windows 
 
 - `main.py` — FastAPI app + argparse (`--port`, default 8002; `--log-file`, needed under `pythonw.exe` where stdout/stderr are `None`).
 - `src/windows_utils.py` — pywin32/psutil logic: `EnumWindows` to collect visible windows, `GetTopWindow`/`GW_HWNDNEXT` walk to build a z-order map.
+- `src/dpi.py` — per-monitor DPI awareness for the process.
 - `config.ps1` — shared names and paths, dot-sourced by the scripts below.
 - `install_service.ps1` / `stop_service.ps1` / `restart_service.ps1` / `status_service.ps1` — manage the `WindowsSystemWatchdog` logon task, which runs `venv\Scripts\pythonw.exe main.py --log-file watchdog.log` as the current user.
 
@@ -48,4 +49,4 @@ py main.py --port 8002
 
 - `psutil` can't inspect elevated or exiting processes: their windows are still reported, with `exe_name: null`. A window closing between the two enumerations is sorted last instead of failing the request.
 - No `pid` is included in the response even though the client reads `w.get("pid")`.
-- Coordinates depend on the process's DPI awareness; with display scaling ≠ 100% rects may not match the orchestrator's `screeninfo` monitor geometry (IMPROVEMENTS 2.4).
+- **DPI-aware:** `main.py` calls `src.dpi.enable_dpi_awareness()` at import, before any window or monitor query, so rects and `/get_monitors` are physical pixels (same as the benchmark capture tool). Anything that queries windows must happen after it; awareness can't be changed later in the process.

@@ -5,7 +5,11 @@ import uvicorn
 from fastapi import FastAPI
 from screeninfo import get_monitors as screeninfo_get_monitors
 
+from src.dpi import enable_dpi_awareness
 from src.windows_utils import get_windows_info
+
+# Before any window or monitor query: rects and monitors in physical pixels.
+DPI_AWARE = enable_dpi_awareness()
 
 app = FastAPI()
 
