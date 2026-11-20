@@ -51,6 +51,20 @@ def test_z_index_follows_stacking_order(desktop):
     assert info["explorer.exe"]["z_index"] < info["Code.exe"]["z_index"]
 
 
+def test_omits_cloaked_overlays(desktop):
+    """Windows that DWM cloaks (visible to Windows, never drawn) aren't reported.
+
+    Why: Windows 11's Click to Do overlay is a full-screen, front-most window that is
+    always "visible" but cloaked. Reported, it captured every gaze point in a real session
+    ("viewed ClickToDo.exe" on every tick). Cloaked windows also include apps on other
+    virtual desktops, which can't be looked at either.
+    """
+    overlay = FakeWindow(9, "ClickToDo.exe", "Click to Do", (0, 0, 1920, 1200), cloaked=True)
+    desktop([overlay, EDITOR])
+
+    assert [w["exe_name"] for w in get_windows_info()] == ["Code.exe"]
+
+
 @pytest.mark.parametrize(
     "hidden",
     [

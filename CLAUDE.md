@@ -6,6 +6,7 @@ FastAPI app that reports the currently visible top-level windows on the Windows 
 
 - `main.py` — FastAPI app + argparse (`--port`, default 8002; `--log-file`, needed under `pythonw.exe` where stdout/stderr are `None`).
 - `src/windows_utils.py` — pywin32/psutil logic: `EnumWindows` to collect visible windows, `GetTopWindow`/`GW_HWNDNEXT` walk to build a z-order map.
+- `src/dpi.py` — per-monitor DPI awareness for the process.
 - `config.ps1` — shared names and paths, dot-sourced by the scripts below.
 - `install_service.ps1` / `stop_service.ps1` / `restart_service.ps1` / `status_service.ps1` — manage the `WindowsSystemWatchdog` logon task, which runs `venv\Scripts\pythonw.exe main.py --log-file watchdog.log` as the current user.
 
@@ -14,7 +15,7 @@ No pre-commit yet.
 ## Routes
 
 - `GET /health` — `{"status": "ok"}`.
-- `GET /windows_info` — list of `{hwnd, exe_name, title, rect:[l,t,r,b], size:[w,h], z_index}` for every visible window with area > 1px. `z_index` 0 = front-most. Rects are absolute virtual-desktop coordinates; minimized windows show up at about `-32000` and are filtered out by the client.
+- `GET /windows_info` — list of `{hwnd, exe_name, title, rect:[l,t,r,b], size:[w,h], z_index}` for every visible, non-cloaked window with area > 1px. `z_index` 0 = front-most. Rects are absolute virtual-desktop coordinates; minimized windows show up at about `-32000` and are filtered out by the client.
 - `GET /get_monitors` — `screeninfo` monitors (`x`, `y`, `width`, `height`, `name`, `is_primary`, …) in the same desktop coordinates as window rects.
 
 **Contract:** if you change the `/windows_info` shape, update `SystemWatchdogClient.compute_visible_windows` in the orchestrator in the same change.
@@ -46,6 +47,7 @@ py main.py --port 8002
 
 ## Gotchas
 
+- **Cloaked windows are skipped** (`is_cloaked`, DWM `DWMWA_CLOAKED`): Windows reports them visible but never draws them. Windows 11's Click to Do overlay is a full-screen, front-most cloaked window that captured every gaze point before this filter; Windows Input Experience and apps on other virtual desktops are cloaked too.
 - `psutil` can't inspect elevated or exiting processes: their windows are still reported, with `exe_name: null`. A window closing between the two enumerations is sorted last instead of failing the request.
 - No `pid` is included in the response even though the client reads `w.get("pid")`.
-- Coordinates depend on the process's DPI awareness; with display scaling ≠ 100% rects may not match the orchestrator's `screeninfo` monitor geometry (IMPROVEMENTS 2.4).
+- **DPI-aware:** `main.py` calls `src.dpi.enable_dpi_awareness()` at import, before any window or monitor query, so rects and `/get_monitors` are physical pixels (same as the benchmark capture tool). Anything that queries windows must happen after it; awareness can't be changed later in the process.
