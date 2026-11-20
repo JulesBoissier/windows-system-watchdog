@@ -1,4 +1,6 @@
-from typing import Dict, List, Any
+import ctypes
+import sys
+from typing import Any, Dict, List
 
 import win32gui
 import win32con
@@ -18,10 +20,30 @@ def build_z_index_map() -> Dict[str, int]:
     return z_index_map
 
 
+DWMWA_CLOAKED = 14
+
+
+def is_cloaked(hwnd) -> bool:
+    """Whether the Desktop Window Manager hides this window although it is "visible".
+
+    Windows keeps some windows visible but never draws them ("cloaked"): suspended UWP
+    apps, windows on other virtual desktops, and shell overlays such as Click to Do and
+    Windows Input Experience, which cover the whole screen in front of every app. Without
+    this check every gaze point lands on them. Same test as the Alt+Tab list.
+    """
+    if sys.platform != "win32":
+        return False
+    cloaked = ctypes.c_int(0)
+    result = ctypes.windll.dwmapi.DwmGetWindowAttribute(
+        ctypes.c_void_p(hwnd), DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked)
+    )
+    return result == 0 and cloaked.value != 0
+
+
 def win_enum_handler(hwnd, ctx):
     """Handler to be passed to EnumWindows to capture information for visible windows."""
 
-    if win32gui.IsWindowVisible(hwnd):
+    if win32gui.IsWindowVisible(hwnd) and not is_cloaked(hwnd):
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
         try:
             exe_name = psutil.Process(pid).name()
