@@ -32,6 +32,7 @@ class FakeWindow:
     title: str
     rect: Tuple[int, int, int, int]
     visible: bool = True
+    cloaked: bool = False  # visible to Windows but never drawn (DWM cloaking)
 
     @property
     def pid(self):
@@ -73,6 +74,9 @@ class FakeDesktop:
     def IsWindowVisible(self, hwnd):
         return self._by_hwnd[hwnd].visible
 
+    def is_cloaked(self, hwnd):
+        return self._by_hwnd[hwnd].cloaked
+
     def GetWindowText(self, hwnd):
         return self._by_hwnd[hwnd].title
 
@@ -100,6 +104,7 @@ def desktop(monkeypatch):
         fake = FakeDesktop(windows, **kwargs)
         monkeypatch.setattr(wu, "win32gui", fake)
         monkeypatch.setattr(wu, "win32process", fake)
+        monkeypatch.setattr(wu, "is_cloaked", fake.is_cloaked)
         monkeypatch.setattr(wu, "win32con", types.SimpleNamespace(GW_HWNDNEXT=GW_HWNDNEXT))
         monkeypatch.setattr(
             wu,
